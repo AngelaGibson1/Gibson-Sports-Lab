@@ -1,0 +1,160 @@
+#Found NBA 2023/2024 season data in Kaggle and created this to be able to analyze and forecast players stats -- 
+#Import libraries
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+import plotly.graph_objs as go
+import plotly.io as pio
+from plotly.subplots import make_subplots
+
+# 1.Load and Explore Data
+def load_data(file_path):
+    """Load and return the NBA player dataset from a CSV file."""
+    return pd.read_csv(file_path)
+
+def explore_data(data):
+    """Display the first few rows and data types of the dataset."""
+    print(data.head())
+    print("\nData Types:\n", data.dtypes)
+
+file_path = '/Users/angie/Desktop/Datasets/nba-player-data.csv'
+nba_data = load_data(file_path)
+explore_data(nba_data)
+
+# 2.Data Cleaning and Preparation
+def clean_data(data):
+    """Convert relevant columns to numeric and drop non-numeric columns."""
+    numeric_columns = data.columns.drop(['Rk', 'Player', 'Pos', 'Tm'])
+    data[numeric_columns] = data[numeric_columns].apply(pd.to_numeric, errors='coerce')
+    
+    non_numeric_columns = data.columns[data.dtypes == 'object']
+    print(f"Non-numeric columns: {non_numeric_columns}")
+    
+    return data.drop(columns=[col for col in non_numeric_columns if col != 'Player'])
+
+nba_data_cleaned = clean_data(nba_data)
+
+# 3.Calculate Player Averages
+def calculate_player_averages(data):
+    """Group by player and calculate the mean for each player's statistics."""
+    return data.groupby('Player').mean()
+
+player_averages = calculate_player_averages(nba_data_cleaned)
+print(player_averages.head())
+
+# 4.Visualize Distribution Stats for Boston Celtics
+def visualize_celtics_stats(data):
+    """Create box plots for key stats of Boston Celtics players."""
+    celtics_data = data[data['Tm'] == 'BOS']
+    
+    numeric_columns = celtics_data.columns.drop(['Rk', 'Player', 'Pos', 'Tm'])
+    celtics_data[numeric_columns] = celtics_data[numeric_columns].apply(pd.to_numeric, errors='coerce')
+    
+    plt.figure(figsize=(12, 8))
+    celtics_data.boxplot(column=['PTS', 'AST', 'TRB', 'MP'])
+    
+    plt.title('Distribution of stats for Boston Celtics Players')
+    plt.ylabel('Value')
+    plt.show()
+
+visualize_celtics_stats(nba_data)
+
+# 5.Predict Future Player Stats Using Linear Regression
+def predict_player_stats(data, players, features, target_columns):
+    """Train linear regression models to predict player statistics."""
+    celtics_data = data[(data['Tm'] == 'BOS') & (data['Player'].isin(players))]
+    
+    celtics_data[features] = celtics_data[features].apply(pd.to_numeric, errors='coerce')
+    celtics_data.dropna(subset=features + target_columns, inplace=True)
+    
+    results = pd.DataFrame()
+    for target in target_columns:
+        X = celtics_data[features]
+        y = celtics_data[target]
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        
+        model = LinearRegression()
+        model.fit(X_train, y_train)
+        
+        predictions = model.predict(X)
+        results[f'Actual {target}'] = y.values
+        results[f'Predicted {target}'] = predictions
+    
+    results['Player'] = celtics_data['Player'].values
+    results = results[['Player'] + [col for col in results.columns if col != 'Player']]
+    
+    return results
+
+celtics_players = ['Jayson Tatum', 'Jaylen Brown', 'Derrick White', 'Jrue Holiday', 'Al Horford']
+features = ['MP', 'FG', 'FGA', '3P', '3PA', 'FT', 'FTA', 'ORB', 'DRB', 'AST', 'STL', 'BLK', 'TOV', 'PF']
+target_columns = ['PTS', 'AST', 'TRB']
+
+predicted_stats = predict_player_stats(nba_data, celtics_players, features, target_columns)
+print(predicted_stats)
+
+# 6.Detailed Performance Analysis for Celtics Players
+def analyze_celtics_performance(data, players):
+    """Generate a detailed performance analysis and visualization for the Celtics players."""
+    celtics_data = data[data['Player'].isin(players)]
+    
+    # Basic Stats
+    basic_stats = celtics_data.groupby('Player').agg({
+        'PTS': ['mean', 'sum'],
+        'AST': ['mean', 'sum'],
+        'TRB': ['mean', 'sum'],
+        'MP': ['mean', 'sum'],
+        'FG%': 'mean',
+        '3P%': 'mean',
+        'FT%': 'mean'
+    }).reset_index()
+    
+    basic_stats.columns = ['Player', 'Avg PTS', 'Total PTS', 'Avg AST', 'Total AST', 'Avg TRB', 'Total TRB', 'Avg MP', 'Total MP', 'FG%', '3P%', 'FT%']
+    
+    # Advanced Metrics
+    basic_stats['PER'] = (basic_stats['Avg PTS'] + basic_stats['Avg AST'] + basic_stats['Avg TRB']) / basic_stats['Avg MP']
+    basic_stats['Usage Rate'] = (basic_stats['FG%'] + basic_stats['3P%'] + basic_stats['FT%']) / 3
+    
+    # Visualization
+    fig = make_subplots(
+        rows=4, cols=2,
+        specs=[[{"type": "table", "colspan": 2}, None],
+               [{}, {}],
+               [{}, {}],
+               [{}, {}]],
+        subplot_titles=(
+            "",  # No title for the table
+            "Average Points per Game", "Average Assists per Game",
+            "Average Rebounds per Game", "Shooting Percentages",
+            "Player Efficiency Rating (PER)", "Usage Rate"
+        )
+    )
+    
+    performance_table_trace = go.Table(
+        header=dict(values=list(basic_stats.columns), fill_color='paleturquoise', align='left'),
+        cells=dict(values=[basic_stats[col] for col in basic_stats.columns], fill_color='lavender', align='left')
+    )
+    
+    fig.add_trace(performance_table_trace, row=1, col=1)
+    
+    fig.add_trace(go.Bar(x=basic_stats['Player'], y=basic_stats['Avg PTS'], name='Avg PTS', marker_color='blue'), row=2, col=1)
+    fig.add_trace(go.Bar(x=basic_stats['Player'], y=basic_stats['Avg AST'], name='Avg AST', marker_color='green'), row=2, col=2)
+    fig.add_trace(go.Bar(x=basic_stats['Player'], y=basic_stats['Avg TRB'], name='Avg TRB', marker_color='purple'), row=3, col=1)
+    fig.add_trace(go.Bar(x=basic_stats['Player'], y=basic_stats['FG%'], name='FG%', marker_color='red'), row=3, col=2)
+    fig.add_trace(go.Bar(x=basic_stats['Player'], y=basic_stats['3P%'], name='3P%', marker_color='orange'), row=3, col=2)
+    fig.add_trace(go.Bar(x=basic_stats['Player'], y=basic_stats['FT%'], name='FT%', marker_color='yellow'), row=3, col=2)
+    
+    fig.add_trace(go.Scatter(x=basic_stats['Player'], y=basic_stats['PER'], mode='markers+lines', name='PER', marker_color='black'), row=4, col=1)
+    fig.add_trace(go.Scatter(x=basic_stats['Player'], y=basic_stats['Usage Rate'], mode='markers+lines', name='Usage Rate', marker_color='brown'), row=4, col=2)
+    
+    fig.update_layout(
+        title="Celtics Player Trends with Advanced Metrics and Detailed Performance",
+        title_x=0.5,
+        height=1200,
+        showlegend=False
+    )
+    
+    # Save the visualization as an interactive HTML file
+    pio.write_html(fig, file='celtics_player_analysis_with_trends.html', auto_open=True)
+
+analyze_celtics_performance(nba_data, celtics_players)
