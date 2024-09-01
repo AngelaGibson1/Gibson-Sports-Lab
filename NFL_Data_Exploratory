@@ -1,0 +1,85 @@
+# Just wanted to explore the NFL python library -- 
+#!pip install nfl_data_py
+
+# Import libraries
+import nfl_data_py as nfl
+import matplotlib.pyplot as plt
+
+# plotting 
+plt.rcParams["figure.figsize"] = (10, 6)
+
+# Function to explore
+def explore_nfl_data():
+    # All available functions
+    print("Available functions and attributes in nfl_data_py:")
+    print(dir(nfl))
+
+    # Play-by-play columns
+    print("\nExploring Play-by-Play Columns:")
+    nfl.see_pbp_cols()
+
+    # Data for 2023
+    pbp = nfl.import_pbp_data([2023])
+    print("\nSample Play-by-Play Data:")
+    print(pbp.head())
+
+    # Seasonal data
+    print("\nExploring Seasonal Data Columns:")
+    nfl.see_weekly_cols()
+    seasonal_data = nfl.import_seasonal_data([2023])
+    print("\nSample Seasonal Data:")
+    print(seasonal_data.head())
+
+    # Players
+    players = nfl.import_players()
+    print("\nSample Roster Data:")
+    print(players.head())
+    print("\nRoster Data Columns:")
+    print(players.columns)
+
+    # Disti of players by years of experience
+    experience_distribution = players['years_of_experience'].value_counts().sort_index()
+    print("\nDistribution of Players by Years of Experience:")
+    print(experience_distribution)
+    if not experience_distribution.empty:
+        experience_distribution.plot(kind='bar', title='Distribution of Players by Experience')
+        plt.show()
+
+    # Disti of players by draft round
+    draft_distribution = players['draft_round'].value_counts().sort_index()
+    print("\nDistribution of Players by Draft Round:")
+    print(draft_distribution)
+    if not draft_distribution.empty:
+        draft_distribution.plot(kind='bar', title='Distribution of Players by Draft Round')
+        plt.show()
+
+    # Disti of players by position
+    position_distribution = players['position'].value_counts()
+    print("\nDistribution of Players by Position:")
+    print(position_distribution)
+    if not position_distribution.empty:
+        position_distribution.plot(kind='bar', title='Distribution of Players by Position')
+        plt.show()
+
+    # Composition by position
+    team_composition = players.groupby('team_abbr')['position'].value_counts().unstack().fillna(0)
+    print("\nTeam Composition by Position:")
+    print(team_composition)
+    if not team_composition.empty:
+        team_composition.plot(kind='bar', stacked=True, title='Team Composition by Position')
+        plt.show()
+
+    # Disti of rookies by team
+    rookies = players[players['years_of_experience'] == 0]
+    print("\nRookies Distribution by Team:")
+    print(rookies[['display_name', 'team_abbr', 'position']])
+    rookie_distribution = rookies['team_abbr'].value_counts()
+    if not rookie_distribution.empty:
+        rookie_distribution.plot(kind='bar', title='Rookies Distribution by Team')
+        plt.show()
+    else:
+        print("No rookies found in the dataset.")
+
+# Run it -- 
+explore_nfl_data()
+
