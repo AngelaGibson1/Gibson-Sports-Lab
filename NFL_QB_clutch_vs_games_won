@@ -1,0 +1,109 @@
+# Run this to see a scatter plot of Average EPA per play vs Games won for Qbs who attempted over 150 passes the past 3 years -- 
+# This helps filter out players such as wide receivers running one or two trick plays
+# I also created a table to see top Qbs by completion percentage, int, and sacks 
+# As the season gets started I will be creating a weekly one that can show this week vs week 
+
+
+import nfl_data_py as nfl
+import pandas as pd
+import plotly.express as px
+import plotly.io as pio
+import plotly.graph_objects as go
+
+# Step 1: Load play-by-play data for the 2021-2023 NFL seasons
+pbp_data = nfl.import_pbp_data([2021, 2022, 2023])
+
+# Step 2: Filter for 4th quarter plays with a close score (7 points or less)
+clutch_plays = pbp_data[(pbp_data['qtr'] == 4) & (pbp_data['score_differential'].abs() <= 7)]
+
+# Step 3: Remove rows where there is no passer (e.g., rushing plays)
+clutch_plays = clutch_plays[clutch_plays['passer_player_name'].notna()]
+
+# Step 4: Calculate the total pass attempts for each quarterback (QB)
+pass_attempts_per_player = clutch_plays.groupby('passer_player_name')['pass_attempt'].sum().reset_index()
+
+# Step 5: Filter for QBs with at least 150 pass attempts in clutch situations
+min_pass_attempts = 150
+qb_names = pass_attempts_per_player[pass_attempts_per_player['pass_attempt'] >= min_pass_attempts]['passer_player_name']
+
+# Step 6: Filter the clutch plays to include only these QBs
+qb_plays = clutch_plays[clutch_plays['passer_player_name'].isin(qb_names)]
+
+# Step 7: Calculate clutch performance metrics for each QB
+clutch_qb_performance = qb_plays.groupby('passer_player_name').agg({
+    'complete_pass': 'mean',      # Average completion percentage
+    'yards_gained': 'mean',       # Average yards per attempt
+    'epa': 'mean',                # Average EPA (Expected Points Added) per play
+    'pass_touchdown': 'sum',      # Total touchdowns thrown
+    'interception': 'sum',        # Total interceptions thrown
+    'sack': 'sum'                 # Total sacks taken
+}).reset_index()
+
+# Step 8: Rename the columns to make them more understandable
+clutch_qb_performance.rename(columns={
+    'complete_pass': 'completion_pct', 
+    'yards_gained': 'yards_per_attempt', 
+    'epa': 'avg_epa',
+    'pass_touchdown': 'td_passes',
+    'interception': 'interceptions',
+    'sack': 'sacks'
+}, inplace=True)
+
+# Step 9: Calculate the number of games won by each QB
+games_won = pbp_data[pbp_data['passer_player_name'].isin(qb_names)].groupby(['passer_player_name', 'game_id']).agg({
+    'posteam_score': 'max',  # The final score of the QB's team
+    'defteam_score': 'max'   # The final score of the opposing team
+}).reset_index()
+
+# Step 10: Determine if the QB's team won each game
+games_won['won'] = games_won['posteam_score'] > games_won['defteam_score']
+
+# Step 11: Sum up the number of wins per QB
+games_won_summary = games_won.groupby('passer_player_name')['won'].sum().reset_index()
+games_won_summary.rename(columns={'won': 'games_won'}, inplace=True)
+
+# Step 12: Merge the clutch performance data with the games won data
+merged_data = pd.merge(clutch_qb_performance, games_won_summary, on='passer_player_name')
+
+# Step 13: Sort the data by completion percentage (before formatting it)
+merged_data = merged_data.sort_values(by='completion_pct', ascending=False)
+
+# Step 14: Format the completion percentage as a percentage (e.g., 65.5%)
+merged_data['completion_pct'] = (merged_data['completion_pct'] * 100).round(2).astype(str) + '%'
+
+# Step 15: Create a scatter plot to show the relationship between games won and average EPA per play
+fig = px.scatter(merged_data, x='games_won', y='avg_epa', text='passer_player_name',
+                 title='Clutch Performance vs. Games Won (2021-2023)',
+                 labels={'games_won': 'Games Won', 'avg_epa': 'Average EPA per Play'})
+
+# Customize the scatter plot (size, color, position of text)
+fig.update_traces(marker=dict(size=12, color='blue', opacity=0.7),
+                  textposition='top center')
+fig.update_layout(xaxis=dict(showgrid=True), yaxis=dict(showgrid=True))
+
+# Step 16: Create a table showing the QBs sorted by completion percentage
+table_fig = go.Figure(data=[go.Table(
+    header=dict(values=['Quarterback', 'Completion %', 'Interceptions', 'Sacks'],
+                fill_color='paleturquoise',
+                align='left'),
+    cells=dict(values=[merged_data['passer_player_name'], 
+                       merged_data['completion_pct'], 
+                       merged_data['interceptions'], 
+                       merged_data['sacks']],
+               fill_color='lavender',
+               align='left'))
+])
+
+# Step 17: Combine the plot and table into a single HTML file
+with open('clutch_vs_games_won.html', 'w') as f:
+    f.write('<html><head><title>Clutch Performance Analysis</title></head><body>\n')
+    f.write('<h1>Clutch Performance vs. Games Won (2021-2023)</h1>\n')
+    f.write('<div>')
+
+    # Add the scatter plot
+    f.write(pio.to_html(fig, full_html=False))
+
+    # Add the table
+    f.write(pio.to_html(table_fig, full_html=False))
+
+    f.write('</div></body></html>')
