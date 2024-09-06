@@ -1,0 +1,81 @@
+# Created a Player Analysis to be able to better view averages by player
+# The main reason, is to see within what range a player should be for a parlay
+# I am thinking of creating a Model next to predict outcomes but this is a bridge between that 
+
+
+import pandas as pd
+import nfl_data_py as nfl
+import plotly.graph_objects as go
+import plotly.io as pio
+from pathlib import Path
+
+pd.set_option('display.max_columns', None)
+
+# I wanted to be able to research any player rather than create specific queries per player so added input
+position = input("What position do you want to analyze (Passing, Rushing, Receiving)? ").strip().lower()
+player_name = input("Enter the player's name: ").strip().title()  # Strip any whitespaces and title case the input
+seasons = [2021, 2022, 2023]  # Define the seasons of interest
+
+if position == 'passing':
+    df = nfl.import_ngs_data(stat_type='passing')
+    stat_label = 'Passing Yards'
+    avg_label = 'Avg Passing Yards'
+    y_col = 'pass_yards'
+    td_col = 'pass_touchdowns'
+    secondary_label = 'Touchdowns'
+elif position == 'rushing':
+    df = nfl.import_ngs_data(stat_type='rushing')
+    stat_label = 'Rushing Yards'
+    avg_label = 'Avg Rushing Yards'
+    y_col = 'rush_yards'
+    td_col = 'rush_touchdowns'
+    secondary_label = 'Rushing Attempts / Touchdowns'
+elif position == 'receiving':
+    df = nfl.import_ngs_data(stat_type='receiving')
+    stat_label = 'Receiving Yards'
+    avg_label = 'Avg Receiving Yards'
+    y_col = 'yards'
+    td_col = 'rec_touchdowns'
+    secondary_label = 'Receptions / Touchdowns'
+else:
+    print("Invalid position selected. Please choose from Passing, Rushing, or Receiving.")
+    exit()
+
+# path for report to be saved in -- i put it in an html file for better view
+output_file = Path("/Desktop/NFL_Player_Analysis_Report.html")
+all_figures = []
+
+# plots
+for season in seasons:
+    # Filter data for each season and remove week 0
+    df_season = df[(df['season'] == season) & (df['player_display_name'].str.lower() == player_name.lower()) & (df['week'] > 0)]
+    
+    if df_season.empty:
+        print(f"No data found for {player_name} in {season}.")
+        continue
+    
+    avg_yards = df_season[y_col].mean()
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=df_season['week'], y=df_season[y_col], mode='lines+markers', name=stat_label, line=dict(color='green')))
+    fig.add_trace(go.Scatter(x=df_season['week'], y=[avg_yards]*len(df_season['week']), mode='lines', name=f'{avg_label}: {avg_yards:.2f}', line=dict(color='blue', dash='dash')))
+    # I wanted a secondary axis to better view 
+    fig.add_trace(go.Scatter(x=df_season['week'], y=df_season[td_col], mode='lines+markers', name='Touchdowns', line=dict(color='red', dash='dot'), yaxis='y2'))
+    if position == 'rushing':
+        fig.add_trace(go.Scatter(x=df_season['week'], y=df_season['rush_attempts'], mode='lines+markers', name='Rushing Attempts', line=dict(color='blue', dash='dot'), yaxis='y2'))
+    if position == 'receiving':
+        fig.add_trace(go.Scatter(x=df_season['week'], y=df_season['receptions'], mode='lines+markers', name='Receptions', line=dict(color='blue', dash='dot'), yaxis='y2'))
+    fig.update_layout(
+        title=f'{player_name} {stat_label} per Week ({season} Season)',
+        xaxis_title='Week',
+        yaxis_title=stat_label,
+        yaxis2=dict(title=secondary_label, overlaying='y', side='right'),
+        height=600
+    )
+    all_figures.append(fig)
+
+# Export the file for better view --
+with open(output_file, 'w') as f:
+    for fig in all_figures:
+        f.write(pio.to_html(fig, full_html=False, include_plotlyjs='cdn'))
+
+print(f"Interactive report for {player_name} has been generated and saved to {output_file}")
