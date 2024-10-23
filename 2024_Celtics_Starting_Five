@@ -1,4 +1,5 @@
 #Found NBA 2023/2024 season data in Kaggle and created this to be able to analyze and forecast players stats -- 
+
 #Import libraries
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -8,7 +9,7 @@ import plotly.graph_objs as go
 import plotly.io as pio
 from plotly.subplots import make_subplots
 
-# 1.Load and Explore Data
+# Load in the data! 
 def load_data(file_path):
     """Load and return the NBA player dataset from a CSV file."""
     return pd.read_csv(file_path)
@@ -22,7 +23,7 @@ file_path = '/Users/angie/Desktop/Datasets/nba-player-data.csv'
 nba_data = load_data(file_path)
 explore_data(nba_data)
 
-# 2.Data Cleaning and Preparation
+# Cleaning and Preparation - 
 def clean_data(data):
     """Convert relevant columns to numeric and drop non-numeric columns."""
     numeric_columns = data.columns.drop(['Rk', 'Player', 'Pos', 'Tm'])
@@ -35,7 +36,7 @@ def clean_data(data):
 
 nba_data_cleaned = clean_data(nba_data)
 
-# 3.Calculate Player Averages
+# I wanted to look at averages but there are other aggregate measurements we can change this to 
 def calculate_player_averages(data):
     """Group by player and calculate the mean for each player's statistics."""
     return data.groupby('Player').mean()
@@ -43,7 +44,7 @@ def calculate_player_averages(data):
 player_averages = calculate_player_averages(nba_data_cleaned)
 print(player_averages.head())
 
-# 4.Visualize Distribution Stats for Boston Celtics
+# Some vizualizations for easier viewing
 def visualize_celtics_stats(data):
     """Create box plots for key stats of Boston Celtics players."""
     celtics_data = data[data['Tm'] == 'BOS']
@@ -60,7 +61,7 @@ def visualize_celtics_stats(data):
 
 visualize_celtics_stats(nba_data)
 
-# 5.Predict Future Player Stats Using Linear Regression
+# Linear Regression for stat predictions 
 def predict_player_stats(data, players, features, target_columns):
     """Train linear regression models to predict player statistics."""
     celtics_data = data[(data['Tm'] == 'BOS') & (data['Player'].isin(players))]
@@ -93,7 +94,7 @@ target_columns = ['PTS', 'AST', 'TRB']
 predicted_stats = predict_player_stats(nba_data, celtics_players, features, target_columns)
 print(predicted_stats)
 
-# 6.Detailed Performance Analysis for Celtics Players
+# Performance Analysis for Celtics Players
 def analyze_celtics_performance(data, players):
     """Generate a detailed performance analysis and visualization for the Celtics players."""
     celtics_data = data[data['Player'].isin(players)]
